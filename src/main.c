@@ -1,61 +1,10 @@
-#include <minwindef.h>
-#include <sqlite3.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <windef.h>
-#include <windows.h>
-
-#define EVENTS_MAX 10'000
-
-typedef struct MouseInputEvent {
-  DWORD time;
-  WPARAM message;
-} MouseInputEvent; // todo: store POINT from MSLLHOOKSTRUCT for heatmaps
-
-typedef struct KeyboardInputEvent {
-  DWORD vkCode;
-  DWORD time;
-  WPARAM message;
-} KeyboardInputEvent;
-
-typedef struct State {
-  MouseInputEvent *mouse;
-  size_t mouse_len;
-
-  KeyboardInputEvent *keyboard;
-  size_t keyboard_len;
-} State;
-
-State *state_init() {
-  State *state = malloc(sizeof(State));
-  if (state == NULL) {
-    return NULL;
-  }
-
-  state->mouse = malloc(EVENTS_MAX * sizeof(MouseInputEvent));
-  state->mouse_len = 0;
-  if (state->mouse == NULL) {
-    free(state);
-    return NULL;
-  }
-
-  state->keyboard = malloc(EVENTS_MAX * sizeof(KeyboardInputEvent));
-  state->keyboard_len = 0;
-  if (state->keyboard == NULL) {
-    free(state->mouse);
-    free(state);
-
-    return NULL;
-  }
-
-  return state;
-}
+#include "database.h"
+#include "state.h"
 
 static State *state = NULL;
 
 LRESULT CALLBACK LowLevelMouseProc(int code, WPARAM wparam, LPARAM lparam) {
-  if (code < 0) {
+  if (code < 0 || wparam == WM_MOUSEMOVE) {
     return CallNextHookEx(NULL, code, wparam, lparam);
   }
 
@@ -81,8 +30,8 @@ LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam) {
 }
 
 int main() {
-  sqlite3 *database;
-  if (sqlite3_open("events.db", &database) != SQLITE_OK) {
+  sqlite3 *database = database_init();
+  if (database == NULL) {
     return -1;
   }
 
@@ -101,4 +50,5 @@ int main() {
 
   UnhookWindowsHookEx(mouse_hook);
   UnhookWindowsHookEx(keyboard_hook);
+  sqlite3_close(database);
 }
